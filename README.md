@@ -38,6 +38,9 @@ This workflow generates five outputs:
 Common issues
 
     If multiple samples are provided (in the form of multiple VCF files), accompanying BAM files for each sample should also be provided. In the case of only one sample, a BAM file is not required.
+    
     Under the sciClone parameters, please specify the correct Copy-number caller used to infer the input copy number data (if provided).
+    
     Fishplot currently might not output any plots, if certain requirements are not satisfied in the ClonEvol step.
+    
     A GTF file and a known cancer database (like COSMIC) are optional inputs, as they are used for generating additional plots by the ClonEvol tool.
