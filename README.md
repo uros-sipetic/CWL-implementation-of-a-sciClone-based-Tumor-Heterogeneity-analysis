@@ -6,7 +6,8 @@ The main idea of the workflow was to build a pipeline that can process standard 
 
 The workflow consists of sciClone, ClonEvol (Ha Dang, https://github.com/hdng/clonevol), Fishplot (Chris Miller, https://github.com/chrisamiller/fishplot), VCFtools (https://github.com/vcftools/vcftools) for VCF processing and custom parsers that properly create files that sciClone can successfully process. 
 
-The workflow is available as a json file desribing the CWL implementation, and can be imported to any of the engines that are able to run CWL code. 
+The workflow is available as a json file desribing the CWL implementation, and can be imported to some of the engines that are able to run CWL code. 
+
 
 
 This workflow has one required input:
@@ -35,12 +36,23 @@ This workflow generates five outputs:
 
     Estimated tumor purity (ID: purity) - Estimated sample tumor purity
 
-Common issues
 
-    If multiple samples are provided (in the form of multiple VCF files), accompanying BAM files for each sample should also be provided. In the case of only one sample, a BAM file is not required.
-    
-    Under the sciClone parameters, please specify the correct Copy-number caller used to infer the input copy number data (if provided).
-    
-    Fishplot currently might not output any plots, if certain requirements are not satisfied in the ClonEvol step.
-    
-    A GTF file and a known cancer database (like COSMIC) are optional inputs, as they are used for generating additional plots by the ClonEvol tool.
+## More detailed description about the approach: 
+
+The main approach with this workflow is based on clustering patterns of allele frequencies at somatic point mutations. The idea is that variant allele frequencies (VAFs) will group around 50% for any heterozygous somatic mutations in copy-number neutral regions. Any other points clustering at regions with VAFs less than 50% would essentially represent subclones that arose later in the tumors evolution (because less reads aligning to these mutations indicate different cells sequenced in the bulk-sequencing experiment).
+
+The approach with the variant allele frequencies is described in detail in the sciClone paper and as a solution for this problem, sciClone is used as the main tool in this Tumor heterogeneity workflow. sciClone results are then further processed by tools such as CloneEvol and Fishplot to produce additional plots that describe the structure of the tumor.
+
+## Important notes
+
+* The Tumor Heterogeneity workflow takes a VCF file obtained from any of the somatic callers as the main input (on the VCF files input). In order to increase the precision of the results, clustering should only be performed in copy-number neutral regions [1]. As such, copy-number calling results obtained from a copy number calling tool like CNVkit or Control-FREEC, can be provided to the workflow as an optional (but highly-recommended) input (on the Copy number calls input). The pairing of VCF samples and copy-number data is done by properly filling in the Sample ID metadata values.
+* The workflow will produce a set of results describing the heterogeneity of the tumor samples, including the information about the number of clusters and which cluster each mutation belongs to (SciClone clusters), different plots showing the clustering of mutations (SciClone plots) and tracking the the tumor's evolution (ClonEvol plots && Fishplot plots), as well as a report with more detailed information about the clustering process, like cluster mean information, the read depth threshold used, as well as the estimated tumor purity (Tumor heterogeneity report).
+* The workflow can work with multiple VCF files (multiple samples per one case, if tracking the evolution of a tumor, for example), but in that case accompanying BAM files for each sample should also be provided. In the case of only one sample, a BAM file is not required. The pairing of VCF samples and BAM files is done by properly filling in the Sample ID metadata values.
+* When working with multiple samples, it is usually of interest to preserve the chronological order of sequenced samples, so that the tumor's evolution can properly be tracked by downstream tools such as ClonEvol and Fishplot. To achieve this, the parameter Sample Order can be used by adding string values of Sample IDs (or VCF filenames) in their proper chronological order (if adding filenames, the sample IDs must be contained in their respective filenames). There should be as much as rows as there are samples/VCFs used in the sciClone analysis. If only one sample is being processed with sciClone, this input is not needed. If multiple sample are being processed, but this input is not provided (or the number of samples specified is not the as the number of input samples), the samples will be sorted alphabetically.
+* The sciClone tool will fail if not enough mutations are present for the clustering procedure. There is a parameter inside the tool which can control minimum read depth of the mutations used for clustering (Minimum read depth - default value is 80 in the workflow). To avoid failure the value for this parameter is determined in the workflow before sciClone itself by checking if enough mutations are present for clustering, and if not - the tool will iteratively lower down the minimum read depth by a fixed resolution (Read depth resolution parameter) until enough mutations are present. The determined value for the minimum read depth is then written to the output Tumor heterogeneity report. This value is calculated by the SBG SciClone Parameters tool, and is then passed into the sciClone tool.
+* Fishplot and Clonevol currently in rare occasions might not output any plots, if very few mutations are available during the sciClone clustering process.
+* A GTF file and a known cancer database (like COSMIC) are optional inputs, as they are used for generating additional plots by the ClonEvol tool.
+* If providing multiple file types to the workflow (VCF, BAM, CNV files), make sure that the naming of chromosomes is compatibles across the files (i.e. >1, >2, ... or >chr1, >chr2, ...).
+* VCF files usually have different formats inside of them. Therefore, instead of the user specifying the type of VCF file they use, the workflow will try and recognize the variant caller from which the VCF came. If the caller is not recognized, and unknown caller error will be returned. The current list of supported callers includes: Mutect1, Mutect2, Varscan, Vardict, Sentieon TNsnv, Muse, Strelka1, Strelka2, GATK Haplotype Caller, Sentien Haplotyper, Sentieon TNscope, EBcall.
+* Similar goes for CNV files - the workflow will automatically try to infer from which CNV caller your CNV results came, and properly parse so that sciClone has no issues in successfully using the file. The currently supported list of CNV callers includes: CNVkit, ControlFREEC, PureCN, Facets, Sequenza, ICR96, GATK, SBG-Conseca.
+* The workflow is not computationally challenging, being that it starts from VCF files, so all tasks finish successfully on the the c4.2xlarge AWS instance with no problems, and pretty much in the same time range (6-7 minutes), and costing around $0.10 using on-demand instances.
