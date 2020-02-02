@@ -8,7 +8,7 @@ The workflow consists of sciClone, ClonEvol (Ha Dang, https://github.com/hdng/cl
 
 The workflow is available as a json file desribing the CWL implementation, and can be imported to some of the engines that are able to run CWL code. 
 
-
+![Graphical representation of this CWL implementation](th_workflow.png)
 
 This workflow has one required input:
 
